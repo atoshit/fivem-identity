@@ -1,30 +1,51 @@
-DeferralCards = exports['ato-identity']:DeferralCards()
+---@class PlayerInfo
+---@field firstname string
+---@field lastname string
+---@field dateofbirth string
+---@field height number
+---@field sex string
+
+---@type table<string, PlayerInfo>
+local registeringPlayers = {};
+
+---@param playerId number
+---@return string
+local function getIdentifier(playerId)
+    local identifier = GetPlayerIdentifierByType(playerId, 'license');
+    return identifier and identifier:gsub('license:', '');
+end
 
 AddEventHandler('playerConnecting', function(name, skr, d)
     local playerId = source
-    playerIdentifier = nil
+    local identifier = getIdentifier(playerId);
 
-    for _, identifier in ipairs(GetPlayerIdentifiers(playerId)) do
-        if string.sub(identifier, 1, 8) == "license:" then
-            playerIdentifier = string.gsub(identifier, "license:", "")
-            break
-        end
-    end 
+    if (not identifier) then
+        CancelEvent();
+        return;
+    end
 
+    ---@param identifier string
+    ---@param fields string[]
     local function queryPlayer(identifier, fields)
         local sql = 'SELECT ' .. table.concat(fields, ", ") .. ' FROM users WHERE identifier = @identifier'
         return MySQL.Sync.fetchAll(sql, { ['@identifier'] = identifier })
     end
 
+    ---@param identifier string
+    ---@return unknown
     local function isPlayerRegistered(identifier)
         return queryPlayer(identifier, { 'identifier' })[1] ~= nil
     end
 
+    ---@param identifier string
+    ---@return PlayerInfo
     local function getPlayerInfo(identifier)
         local result = queryPlayer(identifier, { 'firstname', 'lastname', 'dateofbirth', 'height', 'sex' })
         return result[1] or nil
     end
 
+    ---@param playerInfo PlayerInfo
+    ---@param errorMessage string
     local function showForm(playerInfo, errorMessage)
         local cardBody = {}
         local addTextBlock = function(text, size, color)
@@ -56,7 +77,7 @@ AddEventHandler('playerConnecting', function(name, skr, d)
             addTextBlock('Sexe: ' .. (playerInfo.sex == 'h' and 'Homme' or 'Femme'))
         end
 
-        d.presentCard(DeferralCards.Card.Create({ body = cardBody, actions = { DeferralCards.Action.Submit({ title = playerInfo and 'Se connecter' or 'Valider', style = 'positive' }) } }), 
+        d.presentCard(DeferralCards.Card.Create({ body = cardBody, actions = { DeferralCards.Action.Submit({ title = playerInfo and 'Se connecter' or 'Valider', style = 'positive' }) } }),
         function(data)
             if playerInfo then return d.done() end
 
@@ -65,12 +86,17 @@ AddEventHandler('playerConnecting', function(name, skr, d)
                 return field and (not pattern or field:match(pattern)) and (not min or value >= min) and (not max or value <= max)
             end
 
-            prenom, nom, date_naissance, taille, sex = data.prenom, data.nom, data.date_naissance, data.taille, data.sexe
-            if not (isValid(prenom, "^[%a ]+$") and isValid(nom, "^[%a ]+$") and isValid(date_naissance, "^%d%d%d%d%-%d%d%-%d%d$") and isValid(taille, nil, 150, 220) and sex) then
+            if not (isValid(data.prenom, "^[%a ]+$") and isValid(data.nom, "^[%a ]+$") and isValid(data.date_naissance, "^%d%d%d%d%-%d%d%-%d%d$") and isValid(data.taille, nil, 150, 220) and data.sexe) then
                 return showForm(nil, "Veuillez remplir correctement tous les champs.")
             end
 
-            registerPlayer = true
+            registeringPlayers[identifier] = {}
+            registeringPlayers[identifier]['firstname'] = data.prenom
+            registeringPlayers[identifier]['lastname'] = data.nom
+            registeringPlayers[identifier]['dateofbirth'] = data.date_naissance
+            registeringPlayers[identifier]['height'] = data.taille
+            registeringPlayers[identifier]['sex'] = data.sexe
+
             d.done()
         end)
     end
@@ -78,20 +104,26 @@ AddEventHandler('playerConnecting', function(name, skr, d)
     d.defer()
     Wait(1000)
 
-    local playerInfo = getPlayerInfo(playerIdentifier)
+    local playerInfo = getPlayerInfo(identifier)
     showForm(playerInfo)
 end)
 
 RegisterNetEvent('ato::RegisterPlayer', function ()
-    if registerPlayer then
-        MySQL.Async.execute('UPDATE users SET firstname = @firstname, lastname = @lastname, dateofbirth = @dateofbirth, height = @height, sex = @sex WHERE identifier = @identifier', {
-            ['@identifier'] = playerIdentifier,
-            ['@firstname'] = prenom,
-            ['@lastname'] = nom,
-            ['@dateofbirth'] = date_naissance,
-            ['@height'] = taille,
-            ['@sex'] = sex
-        })
-        print('Identité enregistrée pour ' .. playerIdentifier)
-    end
+    local src = source;
+    local identifier = getIdentifier(src);
+    local playerInfo = registeringPlayers[identifier];
+
+    if (not playerInfo) then return; end
+
+    MySQL.Async.execute('UPDATE users SET firstname = @firstname, lastname = @lastname, dateofbirth = @dateofbirth, height = @height, sex = @sex WHERE identifier = @identifier', {
+        ['@identifier'] = identifier,
+        ['@firstname'] = playerInfo.firstname,
+        ['@lastname'] = playerInfo.lastname,
+        ['@dateofbirth'] = playerInfo.dateofbirth,
+        ['@height'] = playerInfo.height,
+        ['@sex'] = playerInfo.sex
+    }, function()
+        registeringPlayers[identifier] = nil;
+    end)
+    print('Identité enregistrée pour ' .. identifier);
 end)
