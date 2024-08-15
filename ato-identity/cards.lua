@@ -1,14 +1,10 @@
-local DeferralCards = {
+DeferralCards = {
     Card = {},
     CardElement = {},
     Container = {},
     Action = {},
     Input = {}
 }
-
-exports('DeferralCards', function()
-    return DeferralCards
-end)
 
 --------------------------------------------------[[ Cards ]]--------------------------------------------------
 
