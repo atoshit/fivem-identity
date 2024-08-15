@@ -1,2 +1,2 @@
 # Made by atoshi.dev
-https://discord.gg/mjwAts3u
+Preview: https://discord.gg/mjwAts3u
