@@ -74,7 +74,7 @@ AddEventHandler('playerConnecting', function(name, skr, d)
             addTextBlock('Nom: ' .. playerInfo.lastname)
             addTextBlock('Date de naissance: ' .. playerInfo.dateofbirth)
             addTextBlock('Taille: ' .. playerInfo.height .. ' cm')
-            addTextBlock('Sexe: ' .. (playerInfo.sex == 'h' and 'Homme' or 'Femme'))
+            addTextBlock('Sexe: ' .. (playerInfo.sex == 'm' and 'Homme' or 'Femme'))
         end
 
         d.presentCard(DeferralCards.Card.Create({ body = cardBody, actions = { DeferralCards.Action.Submit({ title = playerInfo and 'Se connecter' or 'Valider', style = 'positive' }) } }),
